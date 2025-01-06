@@ -70,3 +70,4 @@ coverage/
 .Pipfile.lock
 composer
 .env
+.vercel
