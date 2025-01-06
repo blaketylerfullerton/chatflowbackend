@@ -69,3 +69,4 @@ coverage/
 # Ignore generated files by package managers
 .Pipfile.lock
 composer
+.env
