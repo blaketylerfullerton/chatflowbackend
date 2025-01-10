@@ -4,7 +4,60 @@
     {
       "src": "api/**/*.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "public/**/*",
+      "use": "@vercel/static"
     }
   ],
-  "routes": [{ "src": "/api/(.*)", "dest": "/api/$1" }]
+  "routes": [
+    {
+      "src": "/widget.js",
+      "dest": "/public/widget.js"
+    },
+    {
+      "src": "/widget.html",
+      "dest": "/public/widget.html"
+    },
+    {
+      "src": "/api/chat/health",
+      "dest": "api/chat/health.js"
+    },
+    {
+      "src": "/api/chat/assistants/fetch",
+      "dest": "api/chat/assistants/fetchassistant.js"
+    },
+    {
+      "src": "/api/chat/assistants/update",
+      "dest": "api/chat/assistants/updateassistant.js"
+    },
+    {
+      "src": "/api/chat/assistants/create",
+      "dest": "api/chat/assistants/createassistant.js"
+    },
+    {
+      "src": "/api/chat/messages/create",
+      "dest": "api/chat/messages/create.js"
+    },
+    {
+      "src": "/api/chat/messages/fetch",
+      "dest": "api/chat/messages/fetch.js"
+    },
+    {
+      "src": "/api/chat/hello",
+      "dest": "api/chat/hello.js"
+    },
+    {
+      "src": "/api/chat/([^/]+)",
+      "dest": "api/chat/[botId].js"
+    },
+    {
+      "src": "/api/chat/test",
+      "dest": "api/chat/test.js"
+    },
+    {
+      "src": "/api/chat/(.*)",
+      "dest": "api/chat/$1"
+    }
+  ]
 }

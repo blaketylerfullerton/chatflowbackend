@@ -1,4 +1,100 @@
-(function () {
+(async function () {
+  const TOGGLE_CHATWIDGET_ID = "toggleChatwidget";
+
+  const INITIAL_MESSAGES_POPUP_ID = "initialMessagesPopup";
+
+  const CLOSE_INITIAL_MESSAGES_POPUP_ID = "closeInitialMessagesPopup";
+
+  const INITIAL_MESSAGES_POPUP_REMOVED_KEY = "initialMessagesPopupRemoved";
+
+  const CHAT_WIDGET_POPUP_SHOWN_KEY = "chatWidgetPopupShown";
+
+  const CHAT_ICON_ID = "chatIcon";
+
+  const CHAT_WIDGET_IFRAME_ID = "chatWidgetIframe";
+
+  const CHATBOT_EMBED_URL = "/chatbot/embed/";
+
+  const GET_CHATWIDGET_DATA_API_URL = "/chatbot/api/chatwidget/";
+
+  const scriptElement = document.currentScript;
+
+  const chatbotUUID = scriptElement.getAttribute("data-id");
+
+  const domain = scriptElement.getAttribute("data-domain");
+
+  const data = await getChatwidgetData(chatbotUUID);
+
+  const iconImg = data.chat_bubble_img;
+
+  const iconClose = data.close;
+
+  const defaultIcon = data.default_icon || false;
+
+  const iconColor = data.chat_bubble_color || "#DAE7FB";
+
+  const iconTextColor = data.user_msg_text_color || "#69707A";
+
+  const initialMessages = data.initial_messages || [];
+
+  const popupType = data.popup_type;
+
+  const initialMessagePopupDelay = data.initial_message_popup_delay;
+
+  const chatwidgetPopupDelay = data.chatwidget_popup_delay;
+
+  const initialPopupMessageFontFamily = data.font_family;
+
+  const initialPopupMessageFontSize = data.font_size;
+
+  let isInitialMessagesPopupShowing = false;
+
+  // Check if the script is running inside an iframe
+  const isInIframe = window !== window.parent;
+
+  // Create the chat widget based on the context
+  if (isInIframe) {
+    createIframeChatWidget();
+  } else {
+    window.chatbotWidget = new ChatbotWidget(botId);
+  }
+
+  function createIframeChatWidget() {
+    const iframe = document.createElement("iframe");
+    iframe.src = `${CHATBOT_EMBED_URL}${botId}`;
+    iframe.style.width = "100%";
+    iframe.style.height = "100%";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
+  }
+
+  async function getChatwidgetData(chatbotUUID) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      const URL = `${domain}${GET_CHATWIDGET_DATA_API_URL}${chatbotUUID}/`;
+
+      xhr.open("GET", URL, true);
+
+      xhr.setRequestHeader("Content-Type", "application/json");
+
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          if (xhr.status === 200) {
+            const data = JSON.parse(xhr.responseText);
+
+            resolve(data);
+          } else {
+            console.log(xhr.responseText);
+
+            reject("Something went wrong while fetching chatwidget's data.");
+          }
+        }
+      };
+
+      xhr.send();
+    });
+  }
   // Create and inject styles
   const style = document.createElement("style");
   style.textContent = `
@@ -127,6 +223,18 @@
       padding: 20px;
       border-top: 1px solid #e2e8f0;
       background: #f8fafc;
+      width: 100%;
+    }
+
+    .chatbot-input-container {
+      display: flex;
+      width: 100%;
+      align-items: center;
+    }
+
+    .chatbot-input-container input {
+      flex-grow: 1;
+      margin-right: 10px;
     }
 
     .message {
@@ -195,8 +303,7 @@
         <div class="chatbot-header">
           <div class="chatbot-header-title">Chat Support</div>
           <div class="chatbot-header-status">
-            <div class="status-indicator"></div>
-            <span>Online</span>
+            <button class="rotate-button" title="Start a new chat">&#8635;</button>
           </div>
         </div>
         <div class="chatbot-messages"></div>
@@ -207,6 +314,11 @@
           </div>
         </div>
       `;
+
+      // Add event listener for the rotate button
+      chatWindow.querySelector(".rotate-button").onclick = () => {
+        this.startNewChat();
+      };
 
       this.setupEventListeners(chatWindow);
       return chatWindow;
@@ -291,6 +403,12 @@
 
       if (!isVisible) {
         this.chatWindow.style.display = "flex";
+        // Remove initial messages popup when opening the chat
+        const popup = document.querySelector(".initial-messages-popup");
+        if (popup) {
+          popup.remove();
+          this.setSessionStorageItem("initial-messages-shown", "true");
+        }
         setTimeout(() => {
           this.chatWindow.classList.add("active");
         }, 0);
@@ -306,14 +424,19 @@
       // Add user message
       this.addMessage(message, "user");
 
+      // Show typing indicator
+      const typingIndicator = this.addMessage("...", "bot");
+
       try {
-        // Send to backend
+        // Update the URL to your Vercel deployment
         const response = await fetch(
           `http://localhost:3000/api/chat/${this.botId}`,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              // Add CORS headers if needed
+              "Access-Control-Allow-Origin": "*",
             },
             body: JSON.stringify({ message }),
           }
@@ -321,12 +444,16 @@
 
         const data = await response.json();
 
+        // Remove typing indicator
+        typingIndicator.remove();
+
         // Add bot response
         setTimeout(() => {
           this.addMessage(data.response, "bot");
         }, 1000);
       } catch (error) {
         console.error("Error:", error);
+        typingIndicator.remove(); // Remove typing indicator on error
         this.addMessage(
           "Sorry, I encountered an error. Please try again later.",
           "bot"
@@ -340,11 +467,17 @@
       messageDiv.textContent = message;
       this.messagesContainer.appendChild(messageDiv);
       this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+      return messageDiv; // Return the messageDiv for
+    }
+
+    startNewChat() {
+      // Logic to start a new chat
+      this.messagesContainer.innerHTML = ""; // Clear previous messages
+      this.showInitialMessages(); // Show initial messages again
     }
   }
 
   // Initialize widget
   const script = document.currentScript;
-  const botId = script.getAttribute("data-bot-id") || "default";
-  window.chatbotWidget = new ChatbotWidget(botId);
+  const botId = script.getAttribute("data-bot-id") || "123";
 })();
